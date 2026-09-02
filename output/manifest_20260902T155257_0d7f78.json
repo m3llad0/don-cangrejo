@@ -1,0 +1,119 @@
+{
+  "run_id": "20260902T155257_0d7f78",
+  "completed_utc": "2026-09-02T15:52:59.096402+00:00",
+  "inputs": {
+    "credit_applications.parquet": "7891e5b619b5c96c9fd3ac6a2731d093f95ea4d4ca07fc60e5a8ec76f6234409",
+    "credit_decisions.parquet": "9da8debd6dd36fdbe8730f71737446354946d41be2deddb8cd7ddff3903f1f2e",
+    "underwriting_ops.parquet": "259519748a13172dffd6ef665f8a4d83e2042fa02357a1436596ee32580098ad",
+    "credit_performance.parquet": "8fb82c046ab961f21e353cb09aa284704a49a602fccbb05607fe335c270a64bd",
+    "app_behavior_features.parquet": "fb74c4f1ff277a643621a2c9aa59c2f5b033cdf072fbc12efbf1f9687fb68666"
+  },
+  "outputs": [
+    {
+      "file": "/Users/emmanuel.santos/dev/nu/don-cangrejo/output/20260902T155257_0d7f78/application_base.parquet",
+      "rows": 520000,
+      "columns": [
+        "application_id",
+        "customer_id",
+        "application_ts",
+        "requested_product",
+        "bureau_hit",
+        "bureau_score",
+        "declared_income_mxn",
+        "employment_type",
+        "age",
+        "state",
+        "existing_nu_customer",
+        "months_with_nu",
+        "decision",
+        "approval_channel",
+        "approved_limit_mxn",
+        "policy_reason",
+        "manual_review_flag",
+        "documents_requested",
+        "decision_latency_hours",
+        "analyst_review_minutes",
+        "reworked_flag",
+        "abandoned_before_decision",
+        "thin_file",
+        "approved",
+        "app_month",
+        "is_train",
+        "is_eval",
+        "is_apply",
+        "default_12m",
+        "default_12m_int",
+        "months_observed",
+        "max_dpd",
+        "avg_balance_mxn",
+        "credit_limit_mxn"
+      ],
+      "sha256": "0fef0279687dc3b6be10c4e39d91424218abafa0c0d39c2cb10ac26b9b376a45"
+    },
+    {
+      "file": "/Users/emmanuel.santos/dev/nu/don-cangrejo/output/20260902T155257_0d7f78/features_clean.parquet",
+      "rows": 520000,
+      "columns": [
+        "application_id",
+        "customer_id",
+        "is_train",
+        "is_eval",
+        "is_apply",
+        "default_12m_int",
+        "has_secured_card",
+        "declared_income_mxn",
+        "age",
+        "months_with_nu",
+        "existing_nu_customer",
+        "sessions_30d",
+        "avg_session_minutes",
+        "deposits_90d_count",
+        "deposits_90d_amount_mxn",
+        "balance_avg_90d_mxn",
+        "payroll_deposit_flag",
+        "p2p_inbound_90d_count",
+        "bill_payments_90d_count",
+        "days_since_last_login"
+      ],
+      "sha256": "12d80711af4f9da410d798688164f53d312ae8f4d2107fc3687997871d1e55d7"
+    },
+    {
+      "file": "/Users/emmanuel.santos/dev/nu/don-cangrejo/output/20260902T155257_0d7f78/model_scores.parquet",
+      "rows": 178458,
+      "columns": [
+        "application_id",
+        "customer_id",
+        "is_eval",
+        "is_apply",
+        "default_12m_int",
+        "pd_hat",
+        "pd_hat_oof",
+        "payroll_deposit_flag",
+        "balance_avg_90d_mxn",
+        "deposits_90d_amount_mxn",
+        "approved_limit_mxn",
+        "avg_balance_mxn"
+      ],
+      "sha256": "6f1d0f9318eaa3dda1ca6a9ecbd10013cf24521f629d07cd4b51cd0af8740857"
+    }
+  ],
+  "meta": {
+    "model": "logistic_regression",
+    "auc_oof": 0.6215,
+    "features": [
+      "declared_income_mxn",
+      "age",
+      "months_with_nu",
+      "existing_nu_customer",
+      "sessions_30d",
+      "avg_session_minutes",
+      "deposits_90d_count",
+      "deposits_90d_amount_mxn",
+      "balance_avg_90d_mxn",
+      "payroll_deposit_flag",
+      "p2p_inbound_90d_count",
+      "bill_payments_90d_count",
+      "days_since_last_login"
+    ]
+  }
+}
