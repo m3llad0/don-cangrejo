@@ -28,8 +28,8 @@ Usage
     # Retrain — fit all candidates, overwrite saved RF
     python pipeline/execution/run_pipeline.py --retrain
 
-    # Custom approval threshold (default 0.70)
-    python pipeline/execution/run_pipeline.py --threshold 0.65
+    # Custom bands (defaults: low=0.40, high=0.70)
+    python pipeline/execution/run_pipeline.py --low 0.35 --high 0.65
 """
 
 import argparse
@@ -66,7 +66,12 @@ from pipeline.persistence.writer import (
 
 MODEL_PATH = REPO_ROOT / "models" / "random_forest.joblib"
 
-DEFAULT_THRESHOLD = 0.70
+# 3-band segmentation (from notebook):
+#   pd_hat < LOW   → auto_approve
+#   pd_hat > HIGH  → auto_reject
+#   in between     → manual review
+DEFAULT_LOW  = 0.40
+DEFAULT_HIGH = 0.70
 
 # feature_cols_v2 from the notebook — drops existing_nu_customer and
 # deposits_90d_amount_mxn (high correlation), keeps secured_card_utilization_pct
@@ -196,42 +201,47 @@ def engineer_features(df: pd.DataFrame) -> pd.DataFrame:
 
 def train(df: pd.DataFrame, model_path: Path = MODEL_PATH) -> tuple[pd.DataFrame, dict]:
     """
-    Compare all CANDIDATES on the thin-file pilot holdout (5-fold stratified CV),
-    then fit Random Forest on the full holdout and save it to model_path.
+    Train Random Forest on is_train (bureau-hit, policy-approved customers with known
+    outcomes — ~272k rows) matching the notebook's approach.
 
-    Random Forest is the production model regardless of AUC ranking — preferred
-    for interpretability (feature importances) and stability on this event-sparse
-    population.
+    Evaluate all CANDIDATES on is_eval (pilot holdout — the only thin-file population
+    with observed outcomes) to report honest OOF AUC on the target population.
 
-    Adds pd_hat_<name>_oof columns to df for holdout rows.
+    RF is always saved as the production model.
     Returns (df_with_oof_cols, comparison_dict).
     """
-    thin_hold = df[df["is_eval"] == 1].copy()
+    train_pop = df[df["is_train"] == 1].copy()
+    eval_pop  = df[df["is_eval"]  == 1].copy()
 
-    X = thin_hold[FEATURES].astype(float).values
-    y = thin_hold["default_12m_int"].astype(int).values
+    X_train = train_pop[FEATURES].astype(float).values
+    y_train = train_pop["default_12m_int"].astype(int).values
 
-    neg, pos = int((y == 0).sum()), int((y == 1).sum())
+    X_eval  = eval_pop[FEATURES].astype(float).values
+    y_eval  = eval_pop["default_12m_int"].astype(int).values
+
+    neg, pos = int((y_train == 0).sum()), int((y_train == 1).sum())
     CANDIDATES["xgboost"].set_params(scale_pos_weight=neg / pos)
 
-    cv = StratifiedKFold(5, shuffle=True, random_state=42)
     comparison = {}
     df = df.copy()
 
-    print("  --- candidate comparison (OOF AUC on pilot holdout) ---")
+    print(f"  train pop: {len(train_pop):,} rows (is_train)  |  "
+          f"eval pop: {len(eval_pop):,} rows (is_eval, pilot holdout)")
+    print("  --- candidate AUC on pilot holdout ---")
     for name, model in CANDIDATES.items():
-        oof = cross_val_predict(model, X, y, cv=cv, method="predict_proba")[:, 1]
-        auc = roc_auc_score(y, oof)
+        model.fit(X_train, y_train)
+        prob = model.predict_proba(X_eval)[:, 1]
+        auc  = roc_auc_score(y_eval, prob)
         comparison[name] = {"auc_oof": round(auc, 4)}
-        print(f"  {name:<22s}  OOF AUC = {auc:.4f}")
+        print(f"  {name:<22s}  AUC = {auc:.4f}")
 
         df[f"pd_hat_{name}_oof"] = np.nan
-        df.loc[thin_hold.index, f"pd_hat_{name}_oof"] = oof
+        df.loc[eval_pop.index, f"pd_hat_{name}_oof"] = prob
 
     comparison["production_model"] = "random_forest"
 
     rf = CANDIDATES["random_forest"]
-    rf.fit(X, y)
+    rf.fit(X_train, y_train)
     save_model(rf, model_path)
 
     return df, comparison
@@ -254,18 +264,24 @@ def score_thin_file(df: pd.DataFrame, model_path: Path = MODEL_PATH) -> pd.DataF
     return df
 
 
-def apply_threshold(df: pd.DataFrame, threshold: float) -> pd.DataFrame:
+def apply_bands(df: pd.DataFrame, low: float = DEFAULT_LOW, high: float = DEFAULT_HIGH) -> pd.DataFrame:
     """
-    Add `approved_flag` (1 = model recommends approval) to thin-file rows.
-    A row is flagged when pd_hat < threshold (lower default probability = safer).
-    Bureau-hit rows are left as NaN — threshold does not apply to them.
+    3-band segmentation matching the notebook:
+      pd_hat < low   → banda = 'auto_approve'
+      pd_hat > high  → banda = 'auto_reject'
+      in between     → banda = 'manual'
+
+    Only applied to thin-file rows; bureau-hit rows get NaN.
     """
     df = df.copy()
-    df["approved_flag"] = np.nan
+    df["banda"] = None  # object dtype so string values can be assigned
     thin_mask = df["thin_file"]
-    df.loc[thin_mask, "approved_flag"] = (
-        df.loc[thin_mask, "pd_hat"] < threshold
-    ).astype(int)
+    scores = df.loc[thin_mask, "pd_hat"]
+    df.loc[thin_mask, "banda"] = np.select(
+        [scores < low, scores > high],
+        ["auto_approve", "auto_reject"],
+        default="manual",
+    )
     return df
 
 
@@ -301,18 +317,21 @@ def build_features_clean(df: pd.DataFrame) -> pd.DataFrame:
 
 
 def build_model_scores(df: pd.DataFrame) -> pd.DataFrame:
-    """Scores for thin-file population: production probability, approval flag, and per-model OOF."""
+    """Scores for thin-file population: pd_hat, 3-band decision, and per-model holdout probs."""
     thin = df[df["thin_file"]].copy()
     oof_cols = [c for c in thin.columns if c.startswith("pd_hat_") and c.endswith("_oof")]
     cols = [
         "application_id", "customer_id",
         "is_eval", "is_apply",
-        "default_12m_int",
         "pd_hat",
-        "approved_flag",
+        "banda",
         *oof_cols,
-        "payroll_deposit_flag", "balance_avg_90d_mxn",
-        "approved_limit_mxn", "avg_balance_mxn",
+        # ground-truth label — NaN for rows without observed outcome
+        "default_12m_int",
+        # pre-decision features kept for segment analysis
+        "payroll_deposit_flag",
+        "balance_avg_90d_mxn",
+        "declared_income_mxn",
     ]
     return thin[[c for c in cols if c in thin.columns]].copy()
 
@@ -339,9 +358,10 @@ def parse_args() -> argparse.Namespace:
                    help="Directory for processed outputs (default: output/)")
     p.add_argument("--model-path", type=Path, default=MODEL_PATH,
                    help=f"Path to saved Random Forest model (default: {MODEL_PATH})")
-    p.add_argument("--threshold",  type=float, default=DEFAULT_THRESHOLD,
-                   help=f"Approval threshold on pd_hat: approve when pd_hat < threshold "
-                        f"(default: {DEFAULT_THRESHOLD})")
+    p.add_argument("--low",  type=float, default=DEFAULT_LOW,
+                   help=f"Auto-approve band: pd_hat < low (default: {DEFAULT_LOW})")
+    p.add_argument("--high", type=float, default=DEFAULT_HIGH,
+                   help=f"Auto-reject band: pd_hat > high (default: {DEFAULT_HIGH})")
     p.add_argument("--retrain", action="store_true",
                    help="Retrain all candidates and overwrite the saved model. "
                         "Without this flag the pipeline loads the existing model.")
@@ -352,13 +372,14 @@ def run(
     data_dir: Path,
     output_dir: Path,
     model_path: Path,
-    threshold: float,
+    low: float,
+    high: float,
     retrain: bool,
 ) -> None:
     run_id = datetime.now(timezone.utc).strftime("%Y%m%dT%H%M%S") + "_" + uuid.uuid4().hex[:6]
     mode = "RETRAIN" if retrain else "INFERENCE"
     print(f"\n{'='*60}")
-    print(f"Pipeline run  {run_id}  [{mode}]  threshold={threshold}")
+    print(f"Pipeline run  {run_id}  [{mode}]  bands=(<{low} auto_approve | >{high} auto_reject)")
     print(f"{'='*60}")
 
     # ---- 1. Ingest --------------------------------------------------------
@@ -392,18 +413,20 @@ def run(
     comparison = None
 
     if retrain:
-        print(f"  retraining on {df['is_eval'].sum():,} holdout rows …")
         df, comparison = train(df, model_path)
     else:
         print(f"  loading saved model from {model_path} …")
 
     df = score_thin_file(df, model_path)
-    df = apply_threshold(df, threshold)
+    df = apply_bands(df, low, high)
 
-    n_flagged = int(df["approved_flag"].eq(1).sum())
-    n_thin    = int(df["thin_file"].sum())
-    print(f"  threshold={threshold}  →  {n_flagged:,} / {n_thin:,} thin-file applicants flagged for approval "
-          f"({n_flagged / n_thin:.1%})")
+    n_thin         = int(df["thin_file"].sum())
+    n_auto_approve = int(df["banda"].eq("auto_approve").sum())
+    n_manual       = int(df["banda"].eq("manual").sum())
+    n_auto_reject  = int(df["banda"].eq("auto_reject").sum())
+    print(f"  auto_approve (<{low}): {n_auto_approve:,} ({n_auto_approve/n_thin:.1%})  |  "
+          f"manual: {n_manual:,} ({n_manual/n_thin:.1%})  |  "
+          f"auto_reject (>{high}): {n_auto_reject:,} ({n_auto_reject/n_thin:.1%})")
 
     # ---- 4. Persist -------------------------------------------------------
     print("\n[4/4] PERSIST")
@@ -422,7 +445,7 @@ def run(
         "mode": mode,
         "production_model": "random_forest",
         "model_path": str(model_path),
-        "threshold": threshold,
+        "bands": {"auto_approve_below": low, "auto_reject_above": high},
         "features": FEATURES,
     }
     if comparison is not None:
@@ -439,4 +462,4 @@ def run(
 
 if __name__ == "__main__":
     args = parse_args()
-    run(args.data_dir, args.output_dir, args.model_path, args.threshold, args.retrain)
+    run(args.data_dir, args.output_dir, args.model_path, args.low, args.high, args.retrain)
