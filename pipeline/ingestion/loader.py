@@ -2,12 +2,16 @@
 pipeline/ingestion/loader.py
 
 Loads the five raw Parquet files and runs referential-integrity checks before
-any transformation happens.  All checks are assertions so a broken join or a
-duplicate key surfaces immediately with a clear message.
+any transformation happens.  Any failed check raises IntegrityError so the
+pipeline halts regardless of the Python optimization level (-O).
 """
 
 from pathlib import Path
 import pandas as pd
+
+
+class IntegrityError(ValueError):
+    """Raised when a referential-integrity check fails."""
 
 
 RAW_FILES = {
@@ -30,7 +34,11 @@ def load_raw(data_dir: Path) -> dict[str, pd.DataFrame]:
 
 
 def run_integrity_checks(tables: dict[str, pd.DataFrame]) -> None:
-    """Assert key uniqueness and referential integrity across all tables."""
+    """Check key uniqueness and referential integrity across all tables.
+
+    Raises IntegrityError on the first failed check so the pipeline never
+    proceeds on invalid input, even when running under python -O.
+    """
     apps  = tables["applications"]
     dec   = tables["decisions"]
     ops   = tables["ops"]
@@ -81,6 +89,7 @@ def run_integrity_checks(tables: dict[str, pd.DataFrame]) -> None:
         status = "PASS" if passed else "FAIL"
         results.append({"check": description, "result": status})
         print(f"  [{status}] {description}")
-        assert passed, f"Integrity check failed: {description}"
+        if not passed:
+            raise IntegrityError(f"Integrity check failed: {description}")
 
     print(f"  integrity: {sum(r['result'] == 'PASS' for r in results)}/{len(results)} checks passed")

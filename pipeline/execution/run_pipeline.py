@@ -51,7 +51,7 @@ from xgboost import XGBClassifier
 REPO_ROOT = Path(__file__).resolve().parent.parent.parent
 sys.path.insert(0, str(REPO_ROOT))
 
-from pipeline.ingestion.loader import load_raw, run_integrity_checks
+from pipeline.ingestion.loader import IntegrityError, load_raw, run_integrity_checks
 from pipeline.persistence.writer import (
     checksum_inputs,
     load_model,
@@ -151,9 +151,10 @@ def join_tables(tables: dict[str, pd.DataFrame]) -> pd.DataFrame:
             .merge(beh,     on="customer_id",                     how="inner", validate="1:1")
             .merge(outcome, on="customer_id",                     how="left",  validate="1:1")
     )
-    assert len(df) == len(apps), (
-        f"Join changed row count: expected {len(apps):,}, got {len(df):,}"
-    )
+    if len(df) != len(apps):
+        raise IntegrityError(
+            f"Join changed row count: expected {len(apps):,}, got {len(df):,}"
+        )
     return df
 
 
@@ -240,9 +241,8 @@ def train(df: pd.DataFrame, model_path: Path = MODEL_PATH) -> tuple[pd.DataFrame
 
     comparison["production_model"] = "random_forest"
 
-    rf = CANDIDATES["random_forest"]
-    rf.fit(X_train, y_train)
-    save_model(rf, model_path)
+    # RF was already fitted in the candidate loop — reuse it directly
+    save_model(CANDIDATES["random_forest"], model_path)
 
     return df, comparison
 
