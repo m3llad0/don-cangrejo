@@ -53,6 +53,7 @@ sys.path.insert(0, str(REPO_ROOT))
 
 from pipeline.ingestion.loader import IntegrityError, load_raw, run_integrity_checks
 from pipeline.persistence.writer import (
+    checksum_file,
     checksum_inputs,
     load_model,
     save_model,
@@ -242,9 +243,9 @@ def train(df: pd.DataFrame, model_path: Path = MODEL_PATH) -> tuple[pd.DataFrame
     comparison["production_model"] = "random_forest"
 
     # RF was already fitted in the candidate loop — reuse it directly
-    save_model(CANDIDATES["random_forest"], model_path)
+    model_sha = save_model(CANDIDATES["random_forest"], model_path)
 
-    return df, comparison
+    return df, comparison, model_sha
 
 
 def score_thin_file(df: pd.DataFrame, model_path: Path = MODEL_PATH) -> pd.DataFrame:
@@ -364,7 +365,8 @@ def parse_args() -> argparse.Namespace:
                    help=f"Auto-reject band: pd_hat > high (default: {DEFAULT_HIGH})")
     p.add_argument("--retrain", action="store_true",
                    help="Retrain all candidates and overwrite the saved model. "
-                        "Without this flag the pipeline loads the existing model.")
+                        "Without this flag the pipeline loads the existing model; "
+                        "if no model file is present it trains automatically.")
     return p.parse_args()
 
 
@@ -412,10 +414,15 @@ def run(
     print(f"\n[3/4] MODEL  (features={len(FEATURES)})")
     comparison = None
 
+    if not retrain and not model_path.exists():
+        print(f"  no model found at {model_path} — training on first run")
+        retrain = True
+
     if retrain:
-        df, comparison = train(df, model_path)
+        df, comparison, model_sha = train(df, model_path)
     else:
         print(f"  loading saved model from {model_path} …")
+        model_sha = checksum_file(model_path)
 
     df = score_thin_file(df, model_path)
     df = apply_bands(df, low, high)
@@ -445,6 +452,7 @@ def run(
         "mode": mode,
         "production_model": "random_forest",
         "model_path": str(model_path),
+        "model_sha256": model_sha,
         "bands": {"auto_approve_below": low, "auto_reject_above": high},
         "features": FEATURES,
     }

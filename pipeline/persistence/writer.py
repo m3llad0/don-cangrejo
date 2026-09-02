@@ -79,6 +79,11 @@ def checksum_inputs(data_dir: Path, filenames: list[str]) -> dict[str, str]:
     return {name: _sha256(data_dir / name) for name in filenames}
 
 
+def checksum_file(path: Path) -> str:
+    """Return the SHA-256 hex digest of an arbitrary file."""
+    return _sha256(path)
+
+
 def save_model(model, path: Path) -> str:
     """Persist a fitted sklearn-compatible model with joblib. Returns SHA-256."""
     path.parent.mkdir(parents=True, exist_ok=True)
