@@ -1,4 +1,16 @@
-.venv
+.venv/
 __pycache__/
 *.py[cod]
 *$py.class
+*.egg-info/
+
+# pipeline outputs (large, reproducible)
+output/
+
+# trained model binaries
+models/*.joblib
+
+# OS / IDE
+.DS_Store
+.idea/
+.vscode/
