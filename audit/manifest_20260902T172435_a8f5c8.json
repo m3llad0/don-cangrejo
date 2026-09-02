@@ -1,6 +1,6 @@
 {
-  "run_id": "20260902T162541_5fec94",
-  "completed_utc": "2026-09-02T16:25:46.693433+00:00",
+  "run_id": "20260902T172435_a8f5c8",
+  "completed_utc": "2026-09-02T17:24:41.177077+00:00",
   "inputs": {
     "credit_applications.parquet": "7891e5b619b5c96c9fd3ac6a2731d093f95ea4d4ca07fc60e5a8ec76f6234409",
     "credit_decisions.parquet": "9da8debd6dd36fdbe8730f71737446354946d41be2deddb8cd7ddff3903f1f2e",
@@ -10,7 +10,7 @@
   },
   "outputs": [
     {
-      "file": "20260902T162541_5fec94/application_base.parquet",
+      "file": "20260902T172435_a8f5c8/application_base.parquet",
       "rows": 520000,
       "columns": [
         "application_id",
@@ -51,7 +51,7 @@
       "sha256": "0fef0279687dc3b6be10c4e39d91424218abafa0c0d39c2cb10ac26b9b376a45"
     },
     {
-      "file": "20260902T162541_5fec94/features_clean.parquet",
+      "file": "20260902T172435_a8f5c8/features_clean.parquet",
       "rows": 520000,
       "columns": [
         "application_id",
@@ -77,42 +77,45 @@
       "sha256": "7afbf9f23145b733d57dccf3f13139f8f55a3a203c94c96381096917066a8cd2"
     },
     {
-      "file": "20260902T162541_5fec94/model_scores.parquet",
+      "file": "20260902T172435_a8f5c8/model_scores.parquet",
       "rows": 178458,
       "columns": [
         "application_id",
         "customer_id",
         "is_eval",
         "is_apply",
-        "default_12m_int",
         "pd_hat",
-        "approved_flag",
+        "banda",
         "pd_hat_logistic_regression_oof",
         "pd_hat_random_forest_oof",
         "pd_hat_xgboost_oof",
+        "default_12m_int",
         "payroll_deposit_flag",
         "balance_avg_90d_mxn",
-        "approved_limit_mxn",
-        "avg_balance_mxn"
+        "declared_income_mxn"
       ],
-      "sha256": "ccdabc8286bc28298cf59c761c24db0644cd601b4cf588e7e5c549b6bb740d28"
+      "sha256": "7949f660f4b2d4a598e1189af636e752bcf446091fc8f8a32171300399c38b92"
     },
     {
-      "file": "20260902T162541_5fec94/model_comparison.parquet",
+      "file": "20260902T172435_a8f5c8/model_comparison.parquet",
       "rows": 3,
       "columns": [
         "model",
         "auc_oof",
         "production"
       ],
-      "sha256": "9fd7298a1eb5854175b211ac71a9e5378d67145c429e70736a7b498e6f41653b"
+      "sha256": "a25f9f66054520b8871ff6054cc91c19ee2120183be966728abd588ded006c93"
     }
   ],
   "meta": {
     "mode": "RETRAIN",
     "production_model": "random_forest",
     "model_path": "/Users/emmanuel.santos/dev/nu/don-cangrejo/models/random_forest.joblib",
-    "threshold": 0.7,
+    "model_sha256": "4f133c07652abf693d9cad6398a5a887ac094c73335b591b78a4f76e811a3c20",
+    "bands": {
+      "auto_approve_below": 0.4,
+      "auto_reject_above": 0.7
+    },
     "features": [
       "sessions_30d",
       "avg_session_minutes",
@@ -128,9 +131,9 @@
       "months_with_nu"
     ],
     "auc_oof_by_model": {
-      "logistic_regression": 0.6697,
-      "random_forest": 0.6568,
-      "xgboost": 0.6332
+      "logistic_regression": 0.6723,
+      "random_forest": 0.6725,
+      "xgboost": 0.6716
     }
   }
 }
