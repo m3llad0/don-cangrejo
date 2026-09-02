@@ -1,0 +1,139 @@
+{
+  "run_id": "20260902T172435_a8f5c8",
+  "completed_utc": "2026-09-02T17:24:41.177077+00:00",
+  "inputs": {
+    "credit_applications.parquet": "7891e5b619b5c96c9fd3ac6a2731d093f95ea4d4ca07fc60e5a8ec76f6234409",
+    "credit_decisions.parquet": "9da8debd6dd36fdbe8730f71737446354946d41be2deddb8cd7ddff3903f1f2e",
+    "underwriting_ops.parquet": "259519748a13172dffd6ef665f8a4d83e2042fa02357a1436596ee32580098ad",
+    "credit_performance.parquet": "8fb82c046ab961f21e353cb09aa284704a49a602fccbb05607fe335c270a64bd",
+    "app_behavior_features.parquet": "fb74c4f1ff277a643621a2c9aa59c2f5b033cdf072fbc12efbf1f9687fb68666"
+  },
+  "outputs": [
+    {
+      "file": "20260902T172435_a8f5c8/application_base.parquet",
+      "rows": 520000,
+      "columns": [
+        "application_id",
+        "customer_id",
+        "application_ts",
+        "requested_product",
+        "bureau_hit",
+        "bureau_score",
+        "declared_income_mxn",
+        "employment_type",
+        "age",
+        "state",
+        "existing_nu_customer",
+        "months_with_nu",
+        "decision",
+        "approval_channel",
+        "approved_limit_mxn",
+        "policy_reason",
+        "manual_review_flag",
+        "documents_requested",
+        "decision_latency_hours",
+        "analyst_review_minutes",
+        "reworked_flag",
+        "abandoned_before_decision",
+        "thin_file",
+        "approved",
+        "app_month",
+        "is_train",
+        "is_eval",
+        "is_apply",
+        "default_12m",
+        "default_12m_int",
+        "months_observed",
+        "max_dpd",
+        "avg_balance_mxn",
+        "credit_limit_mxn"
+      ],
+      "sha256": "0fef0279687dc3b6be10c4e39d91424218abafa0c0d39c2cb10ac26b9b376a45"
+    },
+    {
+      "file": "20260902T172435_a8f5c8/features_clean.parquet",
+      "rows": 520000,
+      "columns": [
+        "application_id",
+        "customer_id",
+        "is_train",
+        "is_eval",
+        "is_apply",
+        "default_12m_int",
+        "has_secured_card",
+        "sessions_30d",
+        "avg_session_minutes",
+        "deposits_90d_count",
+        "balance_avg_90d_mxn",
+        "payroll_deposit_flag",
+        "p2p_inbound_90d_count",
+        "bill_payments_90d_count",
+        "days_since_last_login",
+        "secured_card_utilization_pct",
+        "declared_income_mxn",
+        "age",
+        "months_with_nu"
+      ],
+      "sha256": "7afbf9f23145b733d57dccf3f13139f8f55a3a203c94c96381096917066a8cd2"
+    },
+    {
+      "file": "20260902T172435_a8f5c8/model_scores.parquet",
+      "rows": 178458,
+      "columns": [
+        "application_id",
+        "customer_id",
+        "is_eval",
+        "is_apply",
+        "pd_hat",
+        "banda",
+        "pd_hat_logistic_regression_oof",
+        "pd_hat_random_forest_oof",
+        "pd_hat_xgboost_oof",
+        "default_12m_int",
+        "payroll_deposit_flag",
+        "balance_avg_90d_mxn",
+        "declared_income_mxn"
+      ],
+      "sha256": "7949f660f4b2d4a598e1189af636e752bcf446091fc8f8a32171300399c38b92"
+    },
+    {
+      "file": "20260902T172435_a8f5c8/model_comparison.parquet",
+      "rows": 3,
+      "columns": [
+        "model",
+        "auc_oof",
+        "production"
+      ],
+      "sha256": "a25f9f66054520b8871ff6054cc91c19ee2120183be966728abd588ded006c93"
+    }
+  ],
+  "meta": {
+    "mode": "RETRAIN",
+    "production_model": "random_forest",
+    "model_path": "/Users/emmanuel.santos/dev/nu/don-cangrejo/models/random_forest.joblib",
+    "model_sha256": "4f133c07652abf693d9cad6398a5a887ac094c73335b591b78a4f76e811a3c20",
+    "bands": {
+      "auto_approve_below": 0.4,
+      "auto_reject_above": 0.7
+    },
+    "features": [
+      "sessions_30d",
+      "avg_session_minutes",
+      "deposits_90d_count",
+      "balance_avg_90d_mxn",
+      "payroll_deposit_flag",
+      "p2p_inbound_90d_count",
+      "bill_payments_90d_count",
+      "days_since_last_login",
+      "secured_card_utilization_pct",
+      "declared_income_mxn",
+      "age",
+      "months_with_nu"
+    ],
+    "auc_oof_by_model": {
+      "logistic_regression": 0.6723,
+      "random_forest": 0.6725,
+      "xgboost": 0.6716
+    }
+  }
+}
