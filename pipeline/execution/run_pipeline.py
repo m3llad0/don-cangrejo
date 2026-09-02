@@ -203,14 +203,30 @@ def engineer_features(df: pd.DataFrame) -> pd.DataFrame:
 
 def train(df: pd.DataFrame, model_path: Path = MODEL_PATH) -> tuple[pd.DataFrame, dict]:
     """
-    Train Random Forest on is_train (bureau-hit, policy-approved customers with known
-    outcomes — ~272k rows) matching the notebook's approach.
+    Train on is_train (bureau-hit, policy-approved, ~272k rows); evaluate on is_eval
+    (pilot holdout, ~16k rows).
 
-    Evaluate all CANDIDATES on is_eval (pilot holdout — the only thin-file population
-    with observed outcomes) to report honest OOF AUC on the target population.
+    This deliberately diverges from first_analysis.ipynb (lines 1955-1974), which
+    trains and cross-validates entirely within the thin-file holdout.  The notebook
+    protocol was changed for two reasons:
+
+    1. Sample size: the holdout has ~16k rows with a low default rate (~8%).
+       Cross-validating on it alone yields high-variance AUC estimates and leaves
+       very few positives per fold.  The bureau-hit approved population (~272k rows,
+       same label definition) gives a stable gradient signal.
+
+    2. Evaluation integrity: by never training on is_eval we get a genuine
+       out-of-sample AUC on the target population (thin-file applicants with observed
+       outcomes), which is the number that actually measures deployment risk.
+
+    Trade-off acknowledged: the bureau-hit training population differs in risk profile
+    from thin-file applicants (they have a bureau record), so the model may be
+    miscalibrated in absolute probability.  The AUC on is_eval is the relevant
+    performance metric; scores should be interpreted ordinally for band assignment,
+    not as calibrated default probabilities.
 
     RF is always saved as the production model.
-    Returns (df_with_oof_cols, comparison_dict).
+    Returns (df_with_oof_cols, comparison_dict, model_sha256).
     """
     train_pop = df[df["is_train"] == 1].copy()
     eval_pop  = df[df["is_eval"]  == 1].copy()
